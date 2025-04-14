@@ -16,19 +16,20 @@ with open('data.json', 'r', encoding='utf-8') as file:
     data = json.load(file)
 
 class CubeState(BaseModel):
-  state: str
+  state: str = ""
+  moves: str = ""
 
-def generate_valid_state() -> str:
-  scramble = generate_valid_scramble().strip().split()
-  faces = data["solved_faces"]
+def generate_valid_state(scr: str = "", fcs: dict[str, str] = {}) -> str:
+  scramble = scr or generate_valid_scramble()
+  faces = fcs or data["solved_faces"]
 
-  for move in scramble:
-    mv = move[0]
-    suffix = move[1] or ""
+  for mv in scramble.strip().split():
+    m = mv[0]
+    s = mv[1:]
 
-    faces = move(mv, suffix, faces)
-  
-  return "".join(faces.values())
+    faces = move(m, s, faces)
+
+  return to_state(faces)
 
 def rotate_face(face: str) -> str:
   
@@ -41,8 +42,8 @@ def rotate_face(face: str) -> str:
 def move(mv: str, s: str, state: dict[str, str]) -> dict[str, str]:
   new_state = state
   turns = 1 if s == "" else 2 if s == "2" else 3
-  
-  ignore = data["beside"][mv]["o"]
+
+  ignore = data["opposite"][mv]
 
   for _ in range(turns):
     temp = {}
@@ -51,11 +52,14 @@ def move(mv: str, s: str, state: dict[str, str]) -> dict[str, str]:
       if face == mv:
         temp[face] = rotate_face(new_state[face])
       elif face != ignore:
-        target, before, after = data["map"][mv][face]
+        target = data["map"][mv][face]["target"]
+        from_i = data["map"][mv][face]["from_i"]
+        to_i = data["map"][mv][face]["to_i"]
+
         new_face = new_state[face]
         for i in range(3):
-          sticker_b4 = new_state[target][before[i]]
-          new_face = new_face[:after[i]]+sticker_b4+new_face[after[i]+1:]
+          sticker_b4 = new_state[target][from_i[i]]
+          new_face = new_face[:to_i[i]]+sticker_b4+new_face[to_i[i]+1:]
         temp[face] = new_face
       else:
         temp[face] = new_state[face]
@@ -95,19 +99,35 @@ def invert_scramble(scramble: str) -> str:
   
   return " ".join(inverted_moves)
 
+def to_state(faces: dict[str, str]) -> str:
+  return "".join(faces.values())
+
+def to_faces(state: str) -> dict[str, str]:
+  return {
+    "U": state[0:9],
+    "R": state[9:18],
+    "F": state[18:27],
+    "D": state[27:36],
+    "L": state[36:45],
+    "B": state[45:54]
+  }
+
 @app.get("/start")
 def start(x_api_key: str = Header(None)) -> dict[str, str]:
   if x_api_key != API_KEY:
     raise HTTPException(status_code=403, detail="Unauthorized")
   
   try:
-    state = generate_valid_state()
-    scramble = invert_scramble(kociemba.solve(state))
-    print(state, "State")
-    print(scramble, "Scramble")
-    return {"state": "UUUUUUUUURRRRRRBBBFFFFFFRRRDDDDDDDDDLLLLLLFFFBBBBBBLLL", "scramble": "D'"}
+    while True:
+      state = generate_valid_state()
+      moves = kociemba.solve(state)
+      moves_inverted = invert_scramble(moves)
+      if len(moves.strip().split()) == 20:
+        return {
+          "state": generate_valid_state(moves_inverted),
+          "scramble": moves_inverted
+        }
   except Exception as e:
-    print(e)
     return {"error": str(e)}
 
 @app.post("/solve")
@@ -118,5 +138,17 @@ def solve(data: CubeState, x_api_key: str = Header(None)) -> dict[str, str]:
   try:
     solution = kociemba.solve(data.state)
     return {"solution": solution}
+  except Exception as e:
+    return {"error": str(e)}
+
+@app.post("/move")
+def unique_move(data: CubeState, x_api_key: str = Header(None)) -> dict[str, str]:
+  if x_api_key != API_KEY:
+    raise HTTPException(status_code=403, detail="Unauthorized")
+  
+  try:
+    faces = to_faces(data.state)
+    state = generate_valid_state(data.moves, faces)
+    return {"state": state}
   except Exception as e:
     return {"error": str(e)}
