@@ -95,25 +95,14 @@ def invert_scramble(scramble: str) -> str:
   
   return " ".join(inverted_moves)
 
-@app.get("/scramble")
-def scramble(x_api_key: str = Header(None)) -> dict[str, str]:
-  if x_api_key != API_KEY:
-    raise HTTPException(status_code=403, detail="Unauthorized")
-  
-  try:
-    scramble = generate_valid_scramble()
-    return {"scramble": scramble}
-  except Exception as e:
-    return {"error": str(e)}
-
 @app.get("/start")
 def start(x_api_key: str = Header(None)) -> dict[str, str]:
   if x_api_key != API_KEY:
     raise HTTPException(status_code=403, detail="Unauthorized")
   
   try:
-    state = kociemba.solve(generate_valid_state())
-    scramble = invert_scramble(state)
+    state = generate_valid_state()
+    scramble = invert_scramble(kociemba.solve(state))
     return {"state": state, "scramble": scramble}
   except Exception as e:
     return {"error": str(e)}
