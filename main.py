@@ -124,7 +124,9 @@ def solve(data: CubeState, x_api_key: str = Header(None)) -> dict[str, str]:
     raise HTTPException(status_code=403, detail="Unauthorized")
   
   try:
+    print(data.state)
     solution = kociemba.solve(data.state)
-    return {"solution": solution}
+    print(solution)
+    return {"solution": "solution123"}
   except Exception as e:
     return {"error": str(e)}
