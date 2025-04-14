@@ -102,7 +102,9 @@ def start(x_api_key: str = Header(None)) -> dict[str, str]:
   
   try:
     state = generate_valid_state()
+    print(state, "State")
     scramble = invert_scramble(kociemba.solve(state))
+    print(scramble, "Scramble")
     return {"state": state, "scramble": scramble}
   except Exception as e:
     return {"error": str(e)}
